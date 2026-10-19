@@ -1,0 +1,34 @@
+From: ios-topaz QEMU port <noreply@example.com>
+Subject: [PATCH] qemu: SCTLR_EL1.SPAN so PAN-capable CPUs do not set PAN
+
+On QEMU's cortex-a76 every exception entry set PSTATE.PAN, and copyout
+to user memory (built without PAN support) faulted in a loop at
+__bcopyout (ESR 0x9600004f), stalling launchd. SPAN is RES1 on ARMv8.0.
+---
+--- a/osfmk/arm64/proc_reg.h
++++ b/osfmk/arm64/proc_reg.h
+@@ -651,11 +651,23 @@
+ #define SCTLR_JOP_KEYS_DEFAULT  0
+ #endif
+ 
++#if defined(SWEET)
++/*
++ * SWEET: SPAN (RES1 on the phone's ARMv8.0 cores) keeps a PAN-capable CPU
++ * (QEMU's cortex-a76) from setting PSTATE.PAN on exception entry. This kernel
++ * is built without PAN support: copyin/copyout use plain loads and stores,
++ * which then permission-fault on user pages forever.
++ */
++#define SCTLR_SPAN_DEFAULT      SCTLR_PAN_UNCHANGED
++#else
++#define SCTLR_SPAN_DEFAULT      0
++#endif
++
+ #define SCTLR_EL1_DEFAULT \
+ 	(SCTLR_RESERVED | SCTLR_UCI_ENABLED | SCTLR_nTWE_WFE_ENABLED | SCTLR_DZE_ENABLED | \
+ 	 SCTLR_I_ENABLED | SCTLR_SED_DISABLED | SCTLR_CP15BEN_ENABLED |                    \
+ 	 SCTLR_SA0_ENABLED | SCTLR_SA_ENABLED | SCTLR_C_ENABLED | SCTLR_M_ENABLED |        \
+-	 SCTLR_CSEH_DEFAULT | SCTLR_DSSBS_DEFAULT |                                        \
++	 SCTLR_CSEH_DEFAULT | SCTLR_DSSBS_DEFAULT | SCTLR_SPAN_DEFAULT |                                        \
+ 	 SCTLR_ROP_KEYS_DEFAULT | SCTLR_JOP_KEYS_DEFAULT)
+ 
+ /*
