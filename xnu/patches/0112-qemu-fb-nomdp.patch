@@ -1,0 +1,36 @@
+From: ios-topaz QEMU port <noreply@example.com>
+Subject: [PATCH] qemu: sweetfb_nomdp=1 keeps the framebuffer on the CPU copy path
+
+QEMU virt has no MDP/DSI/INTF; the topaz direct-scanout registers read as
+zero there, so iOS frames never reached the boot framebuffer.
+---
+--- a/iokit/Kernel/arm/SweetFramebuffer.cpp
++++ b/iokit/Kernel/arm/SweetFramebuffer.cpp
+@@ -287,9 +287,15 @@
+ 		IOLog("SWEET FB: no vsync timer\n");
+ 		return false;
+ 	}
+-	fVig0 = (volatile uint32_t *)ml_io_map(0x05e05000, 0x1000);
+-	fCtl0 = (volatile uint32_t *)ml_io_map(0x05e02000, 0x1000);
+-	fDsi = (volatile uint8_t *)ml_io_map(0x05e94000, 0x1000);
++	/*
++	 * sweetfb_nomdp=1 (QEMU virt): no MDP, DSI or INTF hardware. Leave them
++	 * unmapped, so every frame takes the CPU copy into the boot framebuffer.
++	 */
++	int nomdp = 0;
++	(void)PE_parse_boot_argn("sweetfb_nomdp", &nomdp, sizeof(nomdp));
++	fVig0 = nomdp ? NULL : (volatile uint32_t *)ml_io_map(0x05e05000, 0x1000);
++	fCtl0 = nomdp ? NULL : (volatile uint32_t *)ml_io_map(0x05e02000, 0x1000);
++	fDsi = nomdp ? NULL : (volatile uint8_t *)ml_io_map(0x05e94000, 0x1000);
+ 	fDsiBuf = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task,
+ 	    kIODirectionInOut | kIOMemoryPhysicallyContiguous, page_size, 0x00000000fffff000ull);
+ 	fDsiBufPhys = fDsiBuf ? fDsiBuf->getPhysicalSegment(0, NULL, kIOMemoryMapperNone) : 0;
+@@ -321,7 +327,7 @@
+ 		OSSafeReleaseNULL(bl);
+ 	}
+ 	/* dpu sm6115 catalog: intf_1 at mdp+0x6a800, mdp at 0x5e01000 */
+-	fIntf1 = (volatile uint32_t *)ml_io_map(0x05e6b000, 0x1000);
++	fIntf1 = nomdp ? NULL : (volatile uint32_t *)ml_io_map(0x05e6b000, 0x1000);
+ 	if (fIntf1 != NULL) {
+ 		volatile uint32_t *r = fIntf1 + 0x800 / 4;
+ 		r[0x0a8 / 4] = 0x3;     /* FRAME_LINE_COUNT_EN */
