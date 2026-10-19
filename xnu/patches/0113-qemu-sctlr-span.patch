@@ -11,7 +11,7 @@ __bcopyout (ESR 0x9600004f), stalling launchd. SPAN is RES1 on ARMv8.0.
  #define SCTLR_JOP_KEYS_DEFAULT  0
  #endif
  
-+#if defined(SWEET)
++#if defined(ARM64_BOARD_CONFIG_SWEET)
 +/*
 + * SWEET: SPAN (RES1 on the phone's ARMv8.0 cores) keeps a PAN-capable CPU
 + * (QEMU's cortex-a76) from setting PSTATE.PAN on exception entry. This kernel
